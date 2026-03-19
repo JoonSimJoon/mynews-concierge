@@ -1,0 +1,13 @@
+# MyNews Ralph Progress Log
+
+## Iteration 1 - PRD Setup & US-001
+- Started: 2026-03-19
+- Task: PRD 작성 및 프로젝트 초기 설정
+
+## Dataset Analysis Summary (from prior research)
+- Total articles: 191,992 across 2025/01-12
+- Categories: 157 leaf categories, 10 major middle categories
+- Fields: title, body(HTML), summary(255 char truncated), categories, images, comments, share
+- keyword_list is empty (0.4%) - must generate our own
+- 79.7% Web / 20.3% Print articles
+- Median body length: 903 chars (text only)
