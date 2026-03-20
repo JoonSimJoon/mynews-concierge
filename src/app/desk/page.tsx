@@ -26,7 +26,7 @@ export default function DeskPage() {
   const [ttsPlaying, setTtsPlaying] = useState(false);
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
   const choreographyTimeouts = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const lastTimeline = useRef<{ delayMs: number; action: string; gesture?: string; move?: { x: number; y: number; theta: number }; description: string }[]>([]);
+  const lastTimeline = useRef<{ delayMs: number; action: string; gesture?: string; move?: { x: number; y: number; theta: number }; look?: { yaw: number; pitch: number }; description: string }[]>([]);
 
   const loadDesk = useCallback(async () => {
     setLoading(true);
@@ -116,16 +116,20 @@ export default function DeskPage() {
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       ttsAudioRef.current = audio;
-      audio.onended = () => {
-        setTtsPlaying(false);
-        URL.revokeObjectURL(url);
-        ttsAudioRef.current = null;
-      };
-      audio.onerror = () => {
-        setTtsPlaying(false);
-        ttsAudioRef.current = null;
-      };
-      await audio.play();
+      await new Promise<void>((resolve) => {
+        audio.onended = () => {
+          setTtsPlaying(false);
+          URL.revokeObjectURL(url);
+          ttsAudioRef.current = null;
+          resolve();
+        };
+        audio.onerror = () => {
+          setTtsPlaying(false);
+          ttsAudioRef.current = null;
+          resolve();
+        };
+        audio.play().catch(() => resolve());
+      });
     } catch {
       setTtsPlaying(false);
     }
@@ -134,17 +138,28 @@ export default function DeskPage() {
   const cancelTimeline = () => {
     choreographyTimeouts.current.forEach(clearTimeout);
     choreographyTimeouts.current = [];
+    // 안전 정지: 타임라인 취소 시 로봇이 움직이고 있을 수 있으므로 stop 발행
+    fetch("/api/robot/action", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "stop" }),
+    }).catch(() => {});
   };
 
   const executeTimeline = (timeline: typeof lastTimeline.current) => {
     cancelTimeline();
+    console.log(`[Timeline] Starting ${timeline.length} steps`);
     for (const step of timeline) {
       const tid = setTimeout(() => {
+        console.log(`[Timeline] ${step.delayMs}ms: ${step.action} ${step.gesture || ""} ${step.move ? JSON.stringify(step.move) : ""} ${step.look ? JSON.stringify(step.look) : ""}`);
         fetch("/api/robot/action", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: step.action, gesture: step.gesture, move: step.move }),
-        }).catch(() => {});
+          body: JSON.stringify({ action: step.action, gesture: step.gesture, move: step.move, look: step.look }),
+        })
+          .then((r) => r.json())
+          .then((d) => console.log(`[Timeline] ${step.delayMs}ms result:`, d.ok ? "OK" : "FAIL"))
+          .catch((e) => console.error(`[Timeline] ${step.delayMs}ms error:`, e));
       }, step.delayMs);
       choreographyTimeouts.current.push(tid);
     }
@@ -163,20 +178,25 @@ export default function DeskPage() {
       const data = await res.json();
       const script = data.script || null;
       const timeline = data.timeline || [];
-      setRobotScript(script);
       lastTimeline.current = timeline;
 
-      if (type === "morning" || type === "lunch") {
-        await loadDesk();
-      }
-
-      // 타임라인(로봇 동작)과 TTS를 동시에 시작
+      // 타임라인(로봇 동작)을 먼저 시작 — re-render 전에
       if (timeline.length > 0) {
         executeTimeline(timeline);
       }
+
+      // 상태 업데이트는 타임라인 시작 후
+      setRobotScript(script);
+
+      // TTS 재생 (타임라인과 동시 진행)
       if (script) {
         await playTts(script);
-        cancelTimeline(); // TTS 끝나면 남은 타임라인 정리
+        cancelTimeline();
+      }
+
+      // 데스크 새로고침은 마지막에
+      if (type === "morning" || type === "lunch") {
+        void loadDesk();
       }
     } catch {
       setRobotScript("로봇 시퀀스 실행 중 오류가 발생했습니다.");
@@ -184,6 +204,51 @@ export default function DeskPage() {
     } finally {
       setRunningSequence(null);
     }
+  };
+
+  const [testLog, setTestLog] = useState<string[]>([]);
+  const testTimeouts = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const handleTestSequence = () => {
+    testTimeouts.current.forEach(clearTimeout);
+    testTimeouts.current = [];
+    setTestLog(["테스트 시작... (delayMs 기반 setTimeout 체인)"]);
+
+    const steps = [
+      // move first (no gesture blocking)
+      { delayMs: 0,     payload: { action: "move", move: { x: 0.15, y: 0, theta: 0 } }, label: "0ms: move forward" },
+      { delayMs: 1500,  payload: { action: "stop" },                                      label: "1500ms: stop" },
+      // wake_up takes 2.5s — NO move/look until 5s
+      { delayMs: 2000,  payload: { action: "gesture", gesture: "wake_up" },               label: "2000ms: wake_up (2.5s)" },
+      // spin AFTER wake_up finishes
+      { delayMs: 5000,  payload: { action: "move", move: { x: 0, y: 0, theta: 30 } },   label: "5000ms: spin" },
+      { delayMs: 6200,  payload: { action: "stop" },                                      label: "6200ms: stop" },
+      // nod_yes takes 1.4s
+      { delayMs: 6500,  payload: { action: "gesture", gesture: "nod_yes" },               label: "6500ms: nod_yes (1.4s)" },
+      // confused takes 1.5s — AFTER nod ends at ~7.9s
+      { delayMs: 8200,  payload: { action: "gesture", gesture: "confused" },              label: "8200ms: confused (1.5s)" },
+      // dance takes 2.5s — AFTER confused ends at ~9.7s
+      { delayMs: 10000, payload: { action: "gesture", gesture: "dance" },                 label: "10000ms: dance (2.5s)" },
+      // goto_sleep — AFTER dance ends at ~12.5s
+      { delayMs: 13000, payload: { action: "gesture", gesture: "goto_sleep" },            label: "13000ms: goto_sleep" },
+    ];
+
+    for (const step of steps) {
+      const tid = setTimeout(() => {
+        setTestLog((prev) => [...prev, `→ ${step.label}`]);
+        fetch("/api/robot/action", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(step.payload),
+        })
+          .then((r) => r.json())
+          .then((d) => setTestLog((prev) => [...prev, `  ✓ ${d.ok ? "OK" : "FAIL"}`]))
+          .catch(() => setTestLog((prev) => [...prev, `  ✗ NETWORK ERROR`]));
+      }, step.delayMs);
+      testTimeouts.current.push(tid);
+    }
+
+    const doneTid = setTimeout(() => setTestLog((prev) => [...prev, "테스트 완료 (11s)"]), 12000);
+    testTimeouts.current.push(doneTid);
   };
 
   const profession = (() => {
@@ -223,6 +288,26 @@ export default function DeskPage() {
           </p>
           {statusMessage && (
             <p className="mt-3 text-xs text-emerald-400">{statusMessage}</p>
+          )}
+        </section>
+
+        {/* Robot Test */}
+        <section className="bg-zinc-900 border border-red-500/30 rounded-2xl p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-bold text-red-400">Robot Test (debug)</p>
+            <button
+              onClick={() => void handleTestSequence()}
+              className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-semibold"
+            >
+              move → wake_up → spin → nod → dance
+            </button>
+          </div>
+          {testLog.length > 0 && (
+            <div className="bg-zinc-800/50 rounded-lg p-2 mt-2 space-y-0.5">
+              {testLog.map((log, i) => (
+                <p key={i} className="text-[11px] text-zinc-400 font-mono">{log}</p>
+              ))}
+            </div>
           )}
         </section>
 
