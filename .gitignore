@@ -33,6 +33,16 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# database
+*.db
+*.db-shm
+*.db-wal
+
+# omc state (not code)
+.omc/state/
+.omc/scientist/
+.omc/notepad.md
+
 # vercel
 .vercel
 
