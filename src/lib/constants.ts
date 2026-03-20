@@ -22,7 +22,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
   {
     step: 1,
     question: "어떤 뉴스에 관심이 많으세요?",
-    description: "관심 분야를 3개까지 선택해주세요",
+    description: "관심 분야를 5개까지 선택해주세요",
     field: "interests",
     options: [
       { value: "경제", label: "경제", description: "정책, 금융, 재테크" },

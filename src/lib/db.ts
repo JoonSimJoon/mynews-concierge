@@ -137,6 +137,7 @@ export function initDb(): void {
       completed_at TEXT
     );
 
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_concierge_actions_unique ON concierge_actions(profile_id, article_id, action_type) WHERE status = 'pending';
     CREATE INDEX IF NOT EXISTS idx_concierge_actions_profile ON concierge_actions(profile_id, status, created_at DESC);
 
     CREATE TABLE IF NOT EXISTS concierge_handoffs (

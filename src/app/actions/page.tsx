@@ -55,46 +55,76 @@ export default function ActionsPage() {
         )}
 
         {!loading && (
-          <div className="space-y-3">
-            {actions.map((action) => (
-              <article key={action.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold leading-snug">{action.title}</p>
-                    <p className="text-xs text-zinc-500 mt-2">
-                      생성 시각 {action.createdAt.slice(0, 16).replace("T", " ")}
-                    </p>
-                    {action.remindAt && (
-                      <p className="text-xs text-amber-300 mt-1">
-                        리마인드 {action.remindAt.slice(0, 16).replace("T", " ")}
-                      </p>
-                    )}
-                    {action.note && <p className="text-xs text-zinc-400 mt-1">{action.note}</p>}
-                  </div>
-                  <span className={`text-[10px] px-2 py-1 rounded-full ${action.actionType === "remind" ? "bg-amber-500/15 text-amber-300" : "bg-emerald-500/15 text-emerald-300"}`}>
-                    {action.actionType === "remind" ? "리마인드" : "저장"}
-                  </span>
+          <div className="space-y-6">
+            {/* 진행 중 */}
+            {actions.filter((a) => a.status === "pending").length > 0 && (
+              <div>
+                <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-3">오늘 확인할 것</h2>
+                <div className="space-y-3">
+                  {actions.filter((a) => a.status === "pending").map((action) => (
+                    <article key={action.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold leading-snug">{action.title}</p>
+                          <p className="text-xs text-zinc-500 mt-2">
+                            {action.createdAt.slice(0, 16).replace("T", " ")}
+                          </p>
+                          {action.remindAt && (
+                            <p className="text-xs text-amber-300 mt-1">
+                              리마인드 {action.remindAt.slice(0, 16).replace("T", " ")}
+                            </p>
+                          )}
+                          {action.note && <p className="text-xs text-zinc-400 mt-1">{action.note}</p>}
+                        </div>
+                        <span className={`text-[10px] px-2 py-1 rounded-full shrink-0 ${action.actionType === "remind" ? "bg-amber-500/15 text-amber-300" : "bg-emerald-500/15 text-emerald-300"}`}>
+                          {action.actionType === "remind" ? "리마인드" : "저장"}
+                        </span>
+                      </div>
+                      <div className="mt-4 flex gap-2">
+                        <Link
+                          href={`/article/${action.articleId}`}
+                          className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold"
+                        >
+                          기사 보기
+                        </Link>
+                        <button
+                          onClick={() => void handleComplete(action.id)}
+                          className="px-3 py-2 rounded-xl border border-zinc-700 text-sm text-zinc-300 hover:border-zinc-500"
+                        >
+                          완료 처리
+                        </button>
+                      </div>
+                    </article>
+                  ))}
                 </div>
-                <div className="mt-4 flex gap-2">
-                  <Link
-                    href={`/article/${action.articleId}`}
-                    className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold"
-                  >
-                    기사 보기
-                  </Link>
-                  <button
-                    onClick={() => void handleComplete(action.id)}
-                    className="px-3 py-2 rounded-xl border border-zinc-700 text-sm text-zinc-300 hover:border-zinc-500"
-                  >
-                    완료
-                  </button>
+              </div>
+            )}
+
+            {/* 완료됨 */}
+            {actions.filter((a) => a.status === "completed").length > 0 && (
+              <div>
+                <h2 className="text-xs font-bold text-zinc-600 uppercase tracking-wider mb-3">완료됨</h2>
+                <div className="space-y-2">
+                  {actions.filter((a) => a.status === "completed").map((action) => (
+                    <article key={action.id} className="bg-zinc-900/50 border border-zinc-800/50 rounded-2xl p-4 opacity-60">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold leading-snug line-through decoration-zinc-600">{action.title}</p>
+                          <p className="text-xs text-zinc-600 mt-1">
+                            {action.actionType === "remind" ? "리마인드" : "저장"} · 완료
+                          </p>
+                        </div>
+                        <span className="text-[10px] px-2 py-1 rounded-full bg-zinc-800 text-zinc-500">완료</span>
+                      </div>
+                    </article>
+                  ))}
                 </div>
-              </article>
-            ))}
+              </div>
+            )}
 
             {!actions.length && (
-              <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-sm text-zinc-500">
-                아직 등록된 액션이 없습니다. Desk에서 저장하거나 리마인드를 추가해보세요.
+              <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-sm text-zinc-500 text-center">
+                아직 등록된 액션이 없습니다.<br/>Desk에서 저장하거나 리마인드를 추가해보세요.
               </div>
             )}
           </div>

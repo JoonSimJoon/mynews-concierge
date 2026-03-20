@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Onboarding from "@/components/Onboarding";
 import NewsFeed from "@/components/NewsFeed";
 import { isOnboarded } from "@/lib/profile-store";
 
 export default function Home() {
-  const [onboarded, setOnboarded] = useState<boolean | null>(() =>
-    typeof window === "undefined" ? null : isOnboarded()
-  );
+  const [onboarded, setOnboarded] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    setOnboarded(isOnboarded());
+  }, []);
 
   const handleOnboardingComplete = () => {
     setOnboarded(true);

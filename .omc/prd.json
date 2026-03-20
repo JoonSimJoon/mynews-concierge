@@ -1,15 +1,19 @@
 {
-  "project": "MyNews Concierge 데모 준비",
+  "project": "속보 자동 polling 구현",
   "stories": [
-    { "id": "AC-1", "title": "Concierge API smoke test", "priority": 1, "passes": true,
-      "evidence": "brief→3건+greeting+whyItMatters+spokenScript, ask→answer+sources5건+followUps3개, save+today→2건 조회, remind→before_leave preset 저장, handoff→source:ask 반환" },
-    { "id": "AC-2", "title": "Desk 화면 검증", "priority": 2, "passes": true,
-      "evidence": "desk/page.tsx에 whyItMatters, recommendedAction, appDeepLink 렌더링 확인" },
-    { "id": "AC-3", "title": "Action Queue 검증", "priority": 3, "passes": true,
-      "evidence": "actions/page.tsx에 actionType 구분 (remind/save), pending/completed 표시, 완료 처리 로직 존재" },
-    { "id": "AC-4", "title": "Ask 흐름 검증", "priority": 4, "passes": true,
-      "evidence": "search/page.tsx가 /api/concierge/ask 호출, followUpQuestions 렌더링, 기사 목록 표시" },
-    { "id": "AC-5", "title": "빌드 통과", "priority": 5, "passes": true,
-      "evidence": "npx next build 성공, TypeScript 0 errors, 모든 concierge API 라우트 등록 확인" }
+    {
+      "id": "POLL-001",
+      "title": "reachykiwi 속보 자동 polling 로직",
+      "priority": 1,
+      "passes": true,
+      "evidence": "_breaking_alert_loop() 추가 (60초 간격 기본), check_breaking_alert(since) 호출, shouldAlert시 TTS 발화+active_news_context 갱신, text/voice 양쪽 지원, alert_task를 text_fallback에서 create_task+cancel 처리, compile OK"
+    },
+    {
+      "id": "POLL-002",
+      "title": "mynews alert API (since 파라미터)",
+      "priority": 2,
+      "passes": true,
+      "evidence": "buildBreakingAlert가 since 없으면 최근 20건, since 있으면 해당 시점 이후 필터, checkedUntil 반환, build 성공"
+    }
   ]
 }

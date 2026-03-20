@@ -714,8 +714,8 @@ export function getTodayActions(profileId: number): ConciergeActionItem[] {
     .prepare(
       `SELECT *
        FROM concierge_actions
-       WHERE profile_id = ? AND status = 'pending'
-       ORDER BY CASE WHEN remind_at IS NULL THEN 1 ELSE 0 END, remind_at ASC, created_at DESC`
+       WHERE profile_id = ?
+       ORDER BY status ASC, CASE WHEN remind_at IS NULL THEN 1 ELSE 0 END, remind_at ASC, created_at DESC`
     )
     .all(profileId) as Array<{
     id: number;
