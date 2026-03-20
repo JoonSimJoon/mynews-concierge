@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { CATEGORY_COLORS } from "@/lib/constants";
 import { getProfessionConfig } from "@/lib/professions";
@@ -20,13 +20,6 @@ export default function DeskPage() {
   const [handoff, setHandoff] = useState<ConciergeHandoff | null>(null);
   const [loading, setLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [robotConnected, setRobotConnected] = useState<boolean | null>(null);
-  const [runningSequence, setRunningSequence] = useState<string | null>(null);
-  const [robotScript, setRobotScript] = useState<string | null>(null);
-  const [ttsPlaying, setTtsPlaying] = useState(false);
-  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
-  const choreographyTimeouts = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const lastTimeline = useRef<{ delayMs: number; action: string; gesture?: string; move?: { x: number; y: number; theta: number }; description: string }[]>([]);
 
   const loadDesk = useCallback(async () => {
     setLoading(true);
@@ -90,102 +83,6 @@ export default function DeskPage() {
     }
   };
 
-  // 로봇 연결 확인
-  useEffect(() => {
-    fetch("/api/robot/sequence")
-      .then((r) => r.json())
-      .then((d) => setRobotConnected(d.connected))
-      .catch(() => setRobotConnected(false));
-  }, []);
-
-  const playTts = async (text: string) => {
-    // 이전 오디오 정리
-    if (ttsAudioRef.current) {
-      ttsAudioRef.current.pause();
-      ttsAudioRef.current = null;
-    }
-    setTtsPlaying(true);
-    try {
-      const res = await fetch("/api/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, voice: "female_calm", rate: "+0%" }),
-      });
-      if (!res.ok) throw new Error("TTS failed");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      ttsAudioRef.current = audio;
-      audio.onended = () => {
-        setTtsPlaying(false);
-        URL.revokeObjectURL(url);
-        ttsAudioRef.current = null;
-      };
-      audio.onerror = () => {
-        setTtsPlaying(false);
-        ttsAudioRef.current = null;
-      };
-      await audio.play();
-    } catch {
-      setTtsPlaying(false);
-    }
-  };
-
-  const cancelTimeline = () => {
-    choreographyTimeouts.current.forEach(clearTimeout);
-    choreographyTimeouts.current = [];
-  };
-
-  const executeTimeline = (timeline: typeof lastTimeline.current) => {
-    cancelTimeline();
-    for (const step of timeline) {
-      const tid = setTimeout(() => {
-        fetch("/api/robot/action", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: step.action, gesture: step.gesture, move: step.move }),
-        }).catch(() => {});
-      }, step.delayMs);
-      choreographyTimeouts.current.push(tid);
-    }
-  };
-
-  const handleRobotSequence = async (type: "morning" | "lunch" | "leaving") => {
-    setRunningSequence(type);
-    setRobotScript(null);
-    cancelTimeline();
-    try {
-      const res = await fetch("/api/robot/sequence", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, profileId: 1 }),
-      });
-      const data = await res.json();
-      const script = data.script || null;
-      const timeline = data.timeline || [];
-      setRobotScript(script);
-      lastTimeline.current = timeline;
-
-      if (type === "morning" || type === "lunch") {
-        await loadDesk();
-      }
-
-      // 타임라인(로봇 동작)과 TTS를 동시에 시작
-      if (timeline.length > 0) {
-        executeTimeline(timeline);
-      }
-      if (script) {
-        await playTts(script);
-        cancelTimeline(); // TTS 끝나면 남은 타임라인 정리
-      }
-    } catch {
-      setRobotScript("로봇 시퀀스 실행 중 오류가 발생했습니다.");
-      cancelTimeline();
-    } finally {
-      setRunningSequence(null);
-    }
-  };
-
   const profession = (() => {
     if (typeof window === "undefined") return getProfessionConfig();
     return getProfessionConfig(getProfile().occupation);
@@ -223,62 +120,6 @@ export default function DeskPage() {
           </p>
           {statusMessage && (
             <p className="mt-3 text-xs text-emerald-400">{statusMessage}</p>
-          )}
-        </section>
-
-        {/* Robot Concierge Controls */}
-        <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-bold text-violet-400">Robot Concierge</p>
-            <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-              robotConnected === null ? "bg-zinc-800 text-zinc-500" :
-              robotConnected ? "bg-emerald-500/15 text-emerald-400" : "bg-zinc-800 text-zinc-500"
-            }`}>
-              {robotConnected === null ? "확인 중..." : robotConnected ? "연결됨" : "오프라인"}
-            </span>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            {([
-              { type: "morning" as const, label: "아침 브리핑", icon: "☀️", desc: "오늘의 핵심 뉴스 3건" },
-              { type: "lunch" as const, label: "점심 브리핑", icon: "🍽️", desc: "오전 핵심 요약" },
-              { type: "leaving" as const, label: "퇴근 브리핑", icon: "🌙", desc: "미완료 액션 리마인드" },
-            ]).map(({ type, label, icon, desc }) => (
-              <button
-                key={type}
-                onClick={() => void handleRobotSequence(type)}
-                disabled={runningSequence !== null}
-                className={`p-3 rounded-xl border text-left transition-all ${
-                  runningSequence === type
-                    ? "border-violet-500 bg-violet-500/10 animate-pulse"
-                    : "border-zinc-800 hover:border-violet-500/50 hover:bg-zinc-800/50"
-                } disabled:opacity-50`}
-              >
-                <span className="text-lg">{icon}</span>
-                <p className="text-xs font-semibold mt-1">{label}</p>
-                <p className="text-[10px] text-zinc-500 mt-0.5">{desc}</p>
-              </button>
-            ))}
-          </div>
-          {robotScript && (
-            <div className="mt-3 bg-zinc-800/50 rounded-xl p-3 border border-zinc-700/50">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-[10px] text-zinc-500">
-                  {ttsPlaying ? "🔊 낭독 중..." : "로봇 발화 스크립트"}
-                </p>
-                {!ttsPlaying && (
-                  <button
-                    onClick={() => {
-                      if (lastTimeline.current.length > 0) executeTimeline(lastTimeline.current);
-                      void playTts(robotScript);
-                    }}
-                    className="text-[10px] text-violet-400 hover:text-violet-300"
-                  >
-                    다시 듣기
-                  </button>
-                )}
-              </div>
-              <p className="text-xs text-zinc-300 leading-relaxed">{robotScript}</p>
-            </div>
           )}
         </section>
 
